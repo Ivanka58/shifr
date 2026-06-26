@@ -1,0 +1,9 @@
+{
+  "name": "SHIFR Messenger",
+  "short_name": "SHIFR",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#080f09",
+  "theme_color": "#00ff64",
+  "icons": []
+}
