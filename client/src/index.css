@@ -1,0 +1,165 @@
+@import url("https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Space+Mono:wght@400;700&display=swap");
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --neon: #00ff64;
+  --neon-dim: rgba(0, 255, 100, 0.15);
+  --neon-border: rgba(0, 255, 100, 0.3);
+  --bg: #080f09;
+  --bg-card: #0d1a0f;
+  --text: #00ff64;
+  --text-dim: rgba(0, 255, 100, 0.6);
+  --red: #ff003c;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Space Mono", monospace;
+  text-shadow: 0 0 2px rgba(0, 255, 100, 0.4);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--neon-border); }
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  15% { transform: translateX(-7px); }
+  30% { transform: translateX(7px); }
+  45% { transform: translateX(-5px); }
+  60% { transform: translateX(5px); }
+  75% { transform: translateX(-3px); }
+  90% { transform: translateX(3px); }
+}
+
+@keyframes typewriter {
+  from { width: 0; }
+  to { width: 100%; }
+}
+
+@keyframes blink-cursor {
+  0%, 100% { border-right-color: var(--neon); }
+  50% { border-right-color: transparent; }
+}
+
+@keyframes msg-dissolve {
+  0% { opacity: 1; transform: scale(1); filter: blur(0); }
+  100% { opacity: 0; transform: scale(0.92); filter: blur(4px) hue-rotate(90deg); }
+}
+
+@keyframes particle-fly {
+  0% { opacity: 1; transform: translate(0, 0) scale(1); }
+  100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(0.3); }
+}
+
+@keyframes ctx-in {
+  from { transform: scale(0.88) translateY(-4px); opacity: 0; }
+  to { transform: scale(1) translateY(0); opacity: 1; }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scanline {
+  0% { top: -10%; }
+  100% { top: 110%; }
+}
+
+.animate-shake { animation: shake 420ms ease-in-out; }
+.animate-fade-in { animation: fade-in 200ms ease-out; }
+.animate-ctx-in { animation: ctx-in 120ms ease-out; }
+.animate-dissolve { animation: msg-dissolve 650ms ease-out forwards; }
+
+.typewriter {
+  display: inline-block;
+  overflow: hidden;
+  white-space: nowrap;
+  border-right: 2px solid var(--neon);
+  animation: typewriter 2s steps(30) forwards, blink-cursor 0.8s step-end infinite;
+}
+
+.btn-neon {
+  background: transparent;
+  border: 1px solid var(--neon);
+  color: var(--neon);
+  font-family: "Space Mono", monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  padding: 0.5rem 1.25rem;
+  cursor: pointer;
+  transition: all 0.15s;
+  clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%);
+}
+.btn-neon:hover {
+  background: var(--neon);
+  color: #000;
+  box-shadow: 0 0 16px rgba(0, 255, 100, 0.5);
+}
+.btn-neon:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.input-neon {
+  background: transparent;
+  border: 1px solid var(--neon-border);
+  color: var(--neon);
+  font-family: "Space Mono", monospace;
+  padding: 0.5rem 0.75rem;
+  width: 100%;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.input-neon:focus {
+  border-color: var(--neon);
+  box-shadow: 0 0 8px rgba(0, 255, 100, 0.3);
+}
+.input-neon::placeholder { color: var(--text-dim); }
+
+.card-neon {
+  background: var(--bg-card);
+  border: 1px solid var(--neon-border);
+  clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%);
+}
+
+.bubble-mine {
+  background: linear-gradient(135deg, #003d1a, #005c28);
+  clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%);
+  border: 1px solid rgba(0, 255, 100, 0.25);
+}
+.bubble-other {
+  background: linear-gradient(135deg, #1a0d2e, #2a1040);
+  clip-path: polygon(10px 0, 100% 0, 100% 100%, 0 100%, 0 10px);
+  border: 1px solid rgba(120, 40, 200, 0.25);
+}
+
+.chat-grid {
+  background-image:
+    repeating-linear-gradient(0deg, transparent, transparent 39px, rgba(0,255,100,0.04) 40px),
+    repeating-linear-gradient(90deg, transparent, transparent 39px, rgba(0,255,100,0.04) 40px);
+}
+
+.scanlines::after {
+  content: "";
+  position: fixed;
+  left: 0;
+  width: 100%;
+  height: 40px;
+  background: linear-gradient(transparent, rgba(0, 255, 100, 0.03), transparent);
+  animation: scanline 4s linear infinite;
+  pointer-events: none;
+  z-index: 999;
+}
