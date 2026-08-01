@@ -8,6 +8,7 @@ import { api } from "../lib/api";
 const COLORS = [
   "#00ff64", "#00ffff", "#ff00ff", "#ffff00",
   "#ff6400", "#6400ff", "#ff0064", "#0064ff",
+  "#ff4400", "#44ff00", "#0044ff", "#ff00aa",
 ];
 
 export default function Profile() {
@@ -41,20 +42,21 @@ export default function Profile() {
           {t.profileTitle}
         </div>
 
+        {/* Аватар */}
         <div className="flex justify-center">
           <div
-            className="w-20 h-20 flex items-center justify-center text-2xl
-              font-bold text-black"
+            className="w-24 h-24 flex items-center justify-center text-3xl font-bold text-black"
             style={{
               background: color,
               clipPath: "polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)",
-              boxShadow: `0 0 24px ${color}66`,
+              boxShadow: `0 0 30px ${color}66`,
             }}
           >
             {name[0]?.toUpperCase() || "?"}
           </div>
         </div>
 
+        {/* Имя */}
         <div>
           <label className="block text-xs tracking-widest mb-2 opacity-70">
             {t.nameLabel}
@@ -64,9 +66,11 @@ export default function Profile() {
             value={name}
             onChange={(e) => setName(e.target.value)}
             maxLength={32}
+            placeholder="Ваше имя"
           />
         </div>
 
+        {/* Цвет */}
         <div>
           <label className="block text-xs tracking-widest mb-3 opacity-70">
             {t.colorLabel}
@@ -80,8 +84,8 @@ export default function Profile() {
                 style={{
                   background: c,
                   clipPath: "polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%)",
-                  boxShadow: color === c ? `0 0 12px ${c}` : "none",
-                  outline: color === c ? `1px solid ${c}` : "none",
+                  boxShadow: color === c ? `0 0 16px ${c}` : "none",
+                  outline: color === c ? `2px solid ${c}` : "none",
                   outlineOffset: "2px",
                 }}
               />
@@ -89,17 +93,23 @@ export default function Profile() {
           </div>
         </div>
 
+        {/* Инфо */}
         <div className="card-neon p-4 space-y-2 text-xs">
           <div className="flex justify-between opacity-60">
             <span>ТЕЛЕФОН</span>
-            <span>{session?.phone}</span>
+            <span>{session?.phone || "—"}</span>
           </div>
           <div className="flex justify-between opacity-60">
             <span>ID</span>
-            <span>#{session?.userId}</span>
+            <span>#{session?.userId || "—"}</span>
+          </div>
+          <div className="flex justify-between opacity-40">
+            <span>ВЕРСИЯ</span>
+            <span>SHIFR v2.0</span>
           </div>
         </div>
 
+        {/* Сохранить */}
         <button
           className="btn-neon w-full"
           onClick={() => updateMut.mutate()}
