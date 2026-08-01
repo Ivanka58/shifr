@@ -33,17 +33,24 @@ async function request<T>(
 }
 
 export const api = {
+  // Auth
   login: (phone: string) =>
     request("POST", "/api/auth/login", { phone }),
   verify: (phone: string, code: string) =>
     request("POST", "/api/auth/verify", { phone, code }),
 
+  // Users
   getMe: () => request("GET", "/api/users/me"),
   updateMe: (data: { name?: string; avatarColor?: string }) =>
     request("PATCH", "/api/users/me", data),
   getUsers: () => request<any[]>("GET", "/api/users"),
   getUser: (id: number) => request("GET", `/api/users/${id}`),
 
+  // Settings
+  getSettings: () => request("GET", "/api/settings"),
+  updateSettings: (data: any) => request("PATCH", "/api/settings", data),
+
+  // Messages
   getMessages: (userId: number) =>
     request<any[]>("GET", `/api/messages/${userId}`),
   sendMessage: (toUserId: number, text: string) =>
@@ -55,13 +62,10 @@ export const api = {
   getUnread: () => request<any[]>("GET", "/api/messages/unread"),
   getStats: () => request("GET", "/api/messages/stats"),
 
+  // Push
   getVapidKey: () => request<{ key: string }>("GET", "/api/push/vapid-public-key"),
   subscribePush: (sub: PushSubscriptionJSON) =>
     request("POST", "/api/push/subscribe", sub),
   unsubscribePush: (endpoint: string) =>
     request("DELETE", "/api/push/subscribe", { endpoint }),
-
-  adminUsers: () => request<any[]>("GET", "/api/admin/users"),
-  adminMessages: () => request<any[]>("GET", "/api/admin/messages"),
-  adminPurge: () => request("GET", "/api/admin/purge?key=shifr-purge-2025"),
 };
