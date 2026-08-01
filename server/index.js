@@ -5,26 +5,26 @@ import crypto from "crypto";
 import webpush from "web-push";
 import pino from "pino";
 import pinoHttp from "pino-http";
-import { db, initDb, users, messages, pushSubscriptions } from "./db.js";
-import { encrypt, decrypt } from "./crypto.js";
+import { db, initDb, users, messages, pushSubscriptions, userSettings } from "./db.js";
+import { encryptServer, decryptServer } from "./crypto.js";
 import { eq, and, or, isNull, sql } from "drizzle-orm";
 
 const app = express();
 const logger = pino({ level: "info" });
 
-// ───── MIDDLEWARE ─────
+// ─── MIDDLEWARE ───
 app.use(pinoHttp({ logger }));
 app.use(cors({ origin: process.env.CLIENT_URL || "*" }));
 app.use(express.json());
 
-// ───── VAPID ─────
+// ─── VAPID ───
 webpush.setVapidDetails(
   "mailto:admin@shifr.app",
   process.env.VAPID_PUBLIC_KEY,
   process.env.VAPID_PRIVATE_KEY
 );
 
-// ───── RATE LIMIT (in-memory) ─────
+// ─── RATE LIMIT ───
 const rateMap = new Map();
 function rateLimit(userId) {
   const now = Date.now();
@@ -35,7 +35,7 @@ function rateLimit(userId) {
   return entry.count > 60;
 }
 
-// ───── AUTH MIDDLEWARE ─────
+// ─── AUTH MIDDLEWARE ───
 async function requireSession(req, res, next) {
   const sessionId = req.headers["x-session-id"];
   if (!sessionId) return res.status(401).json({ error: "No session" });
@@ -51,7 +51,7 @@ async function requireSession(req, res, next) {
   next();
 }
 
-// ───── САНИТИЗАЦИЯ ─────
+// ─── САНИТИЗАЦИЯ ───
 function sanitize(str) {
   return str
     .replace(/&/g, "&amp;")
@@ -61,10 +61,10 @@ function sanitize(str) {
     .replace(/'/g, "&#x27;");
 }
 
-// ───── HEALTH ─────
+// ─── HEALTH ───
 app.get("/api/healthz", (req, res) => res.json({ status: "ok" }));
 
-// ───── AUTH ─────
+// ─── AUTH ───
 app.post("/api/auth/login", async (req, res) => {
   const { phone } = req.body;
   if (!phone) return res.status(400).json({ error: "Phone required" });
@@ -75,9 +75,24 @@ app.post("/api/auth/login", async (req, res) => {
     .where(eq(users.phone, phone))
     .limit(1);
 
+  let userId;
   if (!existing.length) {
     const name = "User_" + phone.slice(-4);
-    await db.insert(users).values({ phone, name });
+    const result = await db.insert(users).values({ phone, name }).returning();
+    userId = result[0].id;
+  } else {
+    userId = existing[0].id;
+  }
+
+  // Создаем настройки по умолчанию, если их нет
+  const settingsExist = await db
+    .select()
+    .from(userSettings)
+    .where(eq(userSettings.userId, userId))
+    .limit(1);
+
+  if (!settingsExist.length) {
+    await db.insert(userSettings).values({ userId });
   }
 
   res.json({ message: "Code sent", code: "A-123456" });
@@ -106,7 +121,7 @@ app.post("/api/auth/verify", async (req, res) => {
   });
 });
 
-// ───── USERS ─────
+// ─── USERS ───
 app.get("/api/users/me", requireSession, async (req, res) => {
   const result = await db
     .select()
@@ -149,7 +164,27 @@ app.get("/api/users/:id", requireSession, async (req, res) => {
   res.json(result[0]);
 });
 
-// ───── MESSAGES ─────
+// ─── НАСТРОЙКИ ───
+app.get("/api/settings", requireSession, async (req, res) => {
+  const result = await db
+    .select()
+    .from(userSettings)
+    .where(eq(userSettings.userId, req.userId))
+    .limit(1);
+  res.json(result[0] || {});
+});
+
+app.patch("/api/settings", requireSession, async (req, res) => {
+  const { ...updates } = req.body;
+  const result = await db
+    .update(userSettings)
+    .set(updates)
+    .where(eq(userSettings.userId, req.userId))
+    .returning();
+  res.json(result[0]);
+});
+
+// ─── MESSAGES ───
 app.get("/api/messages/stats", requireSession, async (req, res) => {
   const result = await db
     .select({ count: sql`count(*)` })
@@ -182,9 +217,27 @@ app.get("/api/messages/:userId", requireSession, async (req, res) => {
   const otherId = parseInt(req.params.userId);
   const me = req.userId;
 
+  // Помечаем как доставленные и прочитанные
   await db
     .update(messages)
-    .set({ readAt: new Date() })
+    .set({ 
+      deliveredAt: new Date(),
+      status: "delivered"
+    })
+    .where(
+      and(
+        eq(messages.fromUserId, otherId),
+        eq(messages.toUserId, me),
+        eq(messages.status, "sending")
+      )
+    );
+
+  await db
+    .update(messages)
+    .set({ 
+      readAt: new Date(),
+      status: "read"
+    })
     .where(
       and(
         eq(messages.fromUserId, otherId),
@@ -213,7 +266,7 @@ app.get("/api/messages/:userId", requireSession, async (req, res) => {
     })
     .map((m) => ({
       ...m,
-      text: m.isEncrypted ? decrypt(m.text) : m.text,
+      text: m.isEncrypted ? decryptServer(m.text) : m.text,
     }));
 
   res.json(filtered);
@@ -227,7 +280,7 @@ app.post("/api/messages", requireSession, async (req, res) => {
   if (!text || !toUserId) return res.status(400).json({ error: "Missing fields" });
 
   const clean = sanitize(text);
-  const encryptedText = encrypt(clean);
+  const encryptedText = encryptServer(clean);
 
   const result = await db
     .insert(messages)
@@ -236,10 +289,17 @@ app.post("/api/messages", requireSession, async (req, res) => {
       toUserId,
       text: encryptedText,
       isEncrypted: true,
+      status: "sending",
     })
     .returning();
 
   const msg = result[0];
+
+  // Отмечаем как отправленное
+  await db
+    .update(messages)
+    .set({ status: "sent", deliveredAt: new Date() })
+    .where(eq(messages.id, msg.id));
 
   // Push уведомления
   const subs = await db
@@ -251,7 +311,12 @@ app.post("/api/messages", requireSession, async (req, res) => {
     try {
       await webpush.sendNotification(
         { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-        JSON.stringify({ title: "SHIFR", body: "Новое сообщение", tag: `msg-${me}` })
+        JSON.stringify({ 
+          title: "SHIFR", 
+          body: "Новое сообщение", 
+          tag: `msg-${me}`,
+          data: { messageId: msg.id }
+        })
       );
     } catch (e) {
       if (e.statusCode === 410 || e.statusCode === 404) {
@@ -306,7 +371,7 @@ app.patch("/api/messages/:id", requireSession, async (req, res) => {
   if (!msg.length) return res.status(404).json({ error: "Not found" });
 
   const clean = sanitize(text);
-  const encryptedText = encrypt(clean);
+  const encryptedText = encryptServer(clean);
 
   const result = await db
     .update(messages)
@@ -317,7 +382,7 @@ app.patch("/api/messages/:id", requireSession, async (req, res) => {
   res.json({ ...result[0], text: clean });
 });
 
-// ───── PUSH ─────
+// ─── PUSH ───
 app.get("/api/push/vapid-public-key", (req, res) => {
   res.json({ key: process.env.VAPID_PUBLIC_KEY });
 });
@@ -342,34 +407,9 @@ app.delete("/api/push/subscribe", requireSession, async (req, res) => {
   res.json({ success: true });
 });
 
-// ───── ADMIN ─────
-app.get("/api/admin/users", async (req, res) => {
-  const result = await db.select().from(users);
-  res.json(result);
-});
-
-app.get("/api/admin/messages", async (req, res) => {
-  const result = await db.select().from(messages).orderBy(messages.createdAt);
-  const decrypted = result.map((m) => ({
-    ...m,
-    text: m.isEncrypted ? decrypt(m.text) : m.text,
-  }));
-  res.json(decrypted);
-});
-
-app.get("/api/admin/purge", async (req, res) => {
-  if (req.query.key !== "shifr-purge-2025") {
-    return res.status(403).json({ error: "Forbidden" });
-  }
-  await db.delete(messages);
-  await db.delete(pushSubscriptions);
-  await db.delete(users);
-  res.json({ success: true });
-});
-
-// ───── СТАРТ ─────
+// ─── СТАРТ ───
 const PORT = process.env.PORT || 3000;
 
 initDb().then(() => {
-  app.listen(PORT, () => logger.info(`Server running on port ${PORT}`));
+  app.listen(PORT, () => logger.info(`🚀 SHIFR Server v2.0 running on port ${PORT}`));
 });
